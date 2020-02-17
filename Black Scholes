@@ -1,0 +1,112 @@
+# Task 1: Black Scholes Option Pricing
+
+import math
+from scipy.stats import norm
+
+class BSOption:
+    '''a class to encapsulate the data required for the black Scholes option pricing formula'''
+    def __init__(self, s, x, t, sigma, rf, div):
+        self.s = s #current stock price in dollars
+        self.x = x #the option strike price
+        self.t = t #the option maturity time in years
+        self.sigma = sigma #the annualised risk free rate of return
+        self.rf = rf #the annualised risk free rate of return
+        self.div = div #the annulaised dividend rate
+    def __repr__(self):
+        '''returns a string representation of the object'''
+        s = 's = $%.2f, x = $%.2f, t = %.2f (years), sigma = %.3f, rf = %.3f, div = %.2f' % (self.s, self.x, self.t, self.sigma, self.rf, self.div)
+        return s 
+    def d1(self):
+        '''calculates d1 for the option'''
+        return 1/(self.sigma*(self.t**0.5))*(math.log(self.s/self.x)+(self.rf-self.div+0.5*(self.sigma**2))*self.t)
+    def d2(self):
+        '''calulates d2 for the option'''
+        return self.d1() - self.sigma*math.sqrt(self.t)
+    def nd1(self):
+        '''returns the normal cumulative probability density of d1'''
+        return norm.cdf(self.d1())
+    def nd2(self):
+        '''returns the normal cumulative probability density of d2'''
+        return norm.cdf(self.d2())
+    def value(self):
+        print('Cannot calculate value for base class BSOption')
+        return 0
+    def delta(self):
+        print('Cannot calculate delta for base class BSOption')
+        return 0
+
+
+class BSEuroCallOption(BSOption):
+    '''a class that inherits from BSOption and implements the pricing algorithm for a European style call option'''
+    def value(self):
+        '''returns the value of the Euro call option'''
+        return self.nd1()*self.s*math.exp(-self.div*self.t) - self.nd2()*self.x*math.exp(-self.rf*self.t)
+    def __repr__(self):
+        '''returns a string representation of the european call option class'''
+        s = 'EuroCallOption, value = $%.2f, parameters = (s = $%.2f, x = $%.2f, t = %.2f (years), sigma = %.3f, rf = %.3f, div = %.2f)' % (self.value(), self.s, self.x, self.t, self.sigma, self.rf, self.div)
+        return s
+    def delta(self):
+        '''returns the delta of the option'''
+        return self.nd1()
+
+
+class BSEuroPutOption(BSOption):
+    '''a class that inherits from BSOption and implements the pricing algorithm for a European style put option'''
+    def value(self):
+        '''returns the value of the Euro put option'''
+        return (1-self.nd2())*self.x*math.exp(-self.rf*self.t) - (1-self.nd1())*self.s*math.exp(-self.div*self.t)
+    def __repr__(self):
+        '''returns a string representation of the put option class'''
+        s = 'EuroPutOption, value = $%.2f, parameters = (s = $%.2f, x = $%.2f, t = %.2f (years), sigma = %.3f, rf = %.3f, div = %.2f)' % (self.value(), self.s, self.x, self.t, self.sigma, self.rf, self.div)
+        return s 
+    def delta(self):
+        '''returns the delta of the option'''
+        return self.nd1() - 1
+        
+# Task 2: Client Applications using Black Scholes
+
+def generate_option_value_table(s, x, t, sigma, rf, div):
+    '''generates a table to illustrate the change in option prices with respect to the change in underlying stock price'''
+    call = BSEuroCallOption(s, x, t, sigma, rf, div)
+    print(call)
+    put = BSEuroPutOption(s, x, t, sigma, rf, div)
+    print(put)
+    print()
+    print('Change in option values w.r.t. change in stock price:')
+    parameters = ' '*3 + 'price' + ' '*3 + 'call value' + ' '*3 + 'put value' + ' '*2 + 'call delta' + ' '*2 + 'put delta'
+    print(parameters)
+    string = ''
+    for i in range(21):
+        price = s - 10 + i
+        call_s = BSEuroCallOption(price, x, t, sigma, rf, div)
+        put_s = BSEuroPutOption(price, x ,t, sigma, rf, div)
+        price_s = '$' + ' '*(6 - len(str(price))) + '%.2f' % (price) + ' '*3
+        call_val = '$' + ' '*(6 - len(str('%.2f' % call_s.value()))) + '%.2f' % (call_s.value()) + ' '*5
+        put_val = '$' + ' '*(6 - len(str('%.2f' % put_s.value()))) + '%.2f' % (put_s.value()) + ' '*2
+        call_delta = ' '*4 + '%.4f' % (call_s.delta())
+        put_delta = ' '*4 + '%.4f' % (put_s.delta())
+        string += price_s + call_val + put_val + call_delta + put_delta + '\n'
+    print(string)   
+
+        
+def calculate_implied_volatility(option, value):
+    '''calculates the implies volatility of an option given its current value'''
+    if option.sigma < 0.5:
+        higher = 0.5
+    else:
+        higher = option.sigma
+    lower = 0
+    guess_sigma = (higher + lower)/2
+    guess_value = option.value()
+    diff = guess_value - value
+    while ('%.7f' % guess_value) != ('%.7f' % value):
+        if diff > 0:
+            higher = guess_sigma
+            guess_sigma = (lower + guess_sigma)/2
+        elif diff < 0:
+            lower = guess_sigma
+            guess_sigma = (guess_sigma + higher)/2
+        option.sigma = guess_sigma
+        guess_value = option.value()
+        diff = guess_value - value
+    return guess_sigma
