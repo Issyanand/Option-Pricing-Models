@@ -1,0 +1,205 @@
+# Task 1: Creating Binomial Stock Price Trees
+#
+import math
+
+def get_binomial_factors(sigma, rf, div, h):
+    '''returns the upper and lower factors for binomial calculations'''
+    u = math.exp((rf - div)*h + sigma*(h**0.5))  
+    d = math.exp((rf - div)*h - sigma*(h**0.5)) 
+    return u, d
+
+def get_risk_neutral_probability(sigma, rf, div, h):
+    '''calculates and returns the risk neutral probability given the parameters'''
+    u = get_binomial_factors(sigma, rf, div, h)[0]
+    d = get_binomial_factors(sigma, rf, div, h)[1]
+    p = (math.exp((rf-div)*h)-d)/(u-d)
+    return p
+
+def build_binomial_stock_price_tree(s, sigma, rf, div, T, n):
+    m = []
+    h = T/n
+    u = get_binomial_factors(sigma, rf, div, h)[0]
+    d = get_binomial_factors(sigma, rf, div, h)[1]
+    for i in range(n+1):
+        row = []
+        for j in range(n+1):
+            if j < i:
+                row += [0]
+            else:
+                row += [(s*(d**i)*(u**(j-i)))]
+        m += [row]
+    return m 
+
+def print_binomial_tree(tree):
+    '''prints a nicely formatted binomial tree given the data from the input tree'''
+    for i in range(len(tree)):
+        if tree[i][0] != 0:
+            print((tree[i][0]), end='')
+        else:
+            print(' ' * len(str(tree[0][0])), end='')
+        for j in range(len(tree[i])-1):
+             
+            if i <= j+1:
+                print(f'{tree[i][j+1]:10}', end='') 
+            else:
+                print(' ' * 10, end='')
+        print()   
+
+
+# Task 2: Binomial Options Pricing
+
+def build_euro_call_value_tree(s, x, sigma, rf, div, T, n):
+    '''returns the binomial option value tree for a european call option with the given parameters'''
+    h = T/n
+    m1 = build_binomial_stock_price_tree(s, sigma, rf, div, T, n)
+    m = []
+    p_star = get_risk_neutral_probability(sigma, rf, div, h)
+    for i in range(n+1):
+        row = []
+        for j in range(n+1):
+            if j != (n):
+                row += [0.00]
+            else:
+                row += [max((m1[i][-1]-x),0)]
+        m += [row]
+    constant = math.exp(-(rf-div)*h)
+    for i in range(n):
+        for j in range(n):
+            if i <= n-j-1:
+                x = constant*(p_star*m[j][n-i] + (1-p_star)*m[j+1][n-i])
+                if x == 0:
+                    m[j][n-i-1] = 0.00
+                else:
+                    m[j][n-i-1] = float(x)
+            else:
+                m[j][n-i-1] = 0.00
+    return m
+    
+def euro_call_value(s, x, sigma, rf, div, T, n):
+    '''returns the current value of a european style call option with the given parameters'''
+    h = T/n
+    m1 = build_binomial_stock_price_tree(s, sigma, rf, div, T, n)
+    m = []
+    p_star = get_risk_neutral_probability(sigma, rf, div, h)
+    for i in range(n+1):
+        row = []
+        for j in range(n+1):
+            if j != (n):
+                row += [0.00]
+            else:
+                row += [max((m1[i][-1]-x),0)]
+        m += [row]
+    constant = math.exp(-(rf-div)*h)
+    for i in range(n):
+        for j in range(n):
+            if i <= n-j-1:
+                x = constant*(p_star*m[j][n-i] + (1-p_star)*m[j+1][n-i])
+                if x == 0:
+                    m[j][n-i-1] = 0.00
+                else:
+                    m[j][n-i-1] = float(x)
+            else:
+                m[j][n-i-1] = 0.00
+    return m[0][0]
+
+def build_euro_put_value_tree(s, x, sigma, rf, div, T, n):
+    '''returns the binomial option value tree for a european put option with the given parameters'''
+    stock_prices = build_binomial_stock_price_tree(s, sigma, rf, div, T, n)
+    m = []
+    h = T/n
+    p_star = get_risk_neutral_probability(sigma, rf, div, h)
+    for i in range(n+1):
+        row = []
+        for j in range(n+1):
+            if j != (n):
+                row += [0.00]
+            else:
+                row += [float(max((x-stock_prices[i][-1]),0))]
+        m += [row]
+    constant = math.exp(-(rf-div)*h)
+    for i in range(n):
+        for j in range(n):
+            if i <= n-j-1:
+                x = constant*(p_star*m[j][n-i] + (1-p_star)*m[j+1][n-i])
+                if x == 0:
+                    m[j][n-i-1] = 0.00
+                else:
+                    m[j][n-i-1] = float(x)
+            else:
+                m[j][n-i-1] = 0.00
+    return m
+
+def euro_put_value(s, x, sigma, rf, div, T, n):
+    '''returns the current value of a european style call option with the given parameters'''
+    h = T/n
+    m1 = build_binomial_stock_price_tree(s, sigma, rf, div, T, n)
+    m = []
+    p_star = get_risk_neutral_probability(sigma, rf, div, h)
+    for i in range(n+1):
+        row = []
+        for j in range(n+1):
+            if j != (n):
+                row += [0.00]
+            else:
+                row += [max((x-m1[i][-1]),0)]
+        m += [row]
+    constant = math.exp(-(rf-div)*h)
+    for i in range(n):
+        for j in range(n):
+            if i <= n-j-1:
+                x = constant*(p_star*m[j][n-i] + (1-p_star)*m[j+1][n-i])
+                if x == 0:
+                    m[j][n-i-1] = 0.00
+                else:
+                    m[j][n-i-1] = float(x)
+            else:
+                m[j][n-i-1] = 0.00
+    return m[0][0]
+
+def build_amer_put_value_tree(s, x, sigma, rf, div, T, n):
+    '''returns the binomial option value tree for an american put option with the given parameters'''
+    stock_prices = build_binomial_stock_price_tree(s, sigma, rf, div, T, n)
+    m = []
+    h = T/n
+    p_star = get_risk_neutral_probability(sigma, rf, div, h)
+    for i in range(n+1):
+        row = []
+        for j in range(n+1):
+            if j != (n):
+                row += [0.00]
+            else:
+                row += [float(max((x-stock_prices[i][-1]),0))]
+        m += [row]
+    constant = math.exp(-(rf-div)*h)
+    for i in range(n):
+        for j in range(n):
+            if i <= n-j-1:
+                value = max(constant*(p_star*m[j][n-i] + (1-p_star)*m[j+1][n-i]), x - stock_prices[j][n-i-1])
+                m[j][n-i-1] = float(value)
+            else:
+                m[j][n-i-1] = 0.00
+    return m
+
+def amer_put_value(s, x, sigma, rf, div, T, n):
+    '''calculates and returns the current value of an american put option with the given parameters'''
+    h = T/n
+    m1 = build_binomial_stock_price_tree(s, sigma, rf, div, T, n)
+    p_star = get_risk_neutral_probability(sigma, rf, div, h)
+    m = []
+    for i in range(n+1):
+        row = []
+        for j in range(n+1):
+            if j != (n):
+                row += [0.00]
+            else:
+                row += [float(max((x-m1[i][-1]),0))]
+        m += [row]
+    constant = math.exp(-(rf-div)*h)
+    for i in range(n):
+        for j in range(n):
+            if i <= n-j-1:
+                value = max(constant*(p_star*m[j][n-i] + (1-p_star)*m[j+1][n-i]), x - m1[j][n-i-1])
+                m[j][n-i-1] = float(value)
+            else:
+                m[j][n-i-1] = 0.00
+    return m[0][0]
