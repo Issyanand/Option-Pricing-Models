@@ -1,0 +1,189 @@
+# Task 1: Simulating Stock Returns 
+
+import numpy as np
+import math
+import matplotlib.pyplot as plt
+
+class MCStockSimulator:
+    '''a class to  encapsulate the data and methods required to simulate stock returns and values'''
+    def __init__(self, s, t, r, sigma, nper_per_year):
+        '''initializes the parameters of MCStockSimulator object'''
+        self.s = s
+        self.t = t
+        self.r = r
+        self.sigma = sigma
+        self.nper_per_year = nper_per_year #The number of discrete time periods per year
+    def __repr__(self):
+        '''returns  string representation of the object'''
+        s = 'StockSimulator (s = $%.2f, t = %.2f (years), r = %.2f, sigma = %.2f, nper_per_year = %d)' % (self.s, self.t, self.r, self.sigma, self.nper_per_year)
+        return s 
+    def generate_simulated_stock_returns(self):
+        '''generates a numpy array containing a sequence of simulated stock returns over the time period t'''
+        dt = 1/self.nper_per_year
+        return np.array([((self.r - (self.sigma**2)/2)*dt + np.random.normal()*self.sigma*(dt**0.5)) for i in range(int(self.t*self.nper_per_year))])
+    def generate_simulated_stock_values(self):
+        '''generates a numpy array sequence of stock values corresponding to a random sequence of stock returns'''
+        r_vals = self.generate_simulated_stock_returns()
+        listS = [self.s]
+        for i in range(int(self.nper_per_year*self.t)):
+            S = listS[i]*math.exp(r_vals[i])
+            listS += [S]
+        return np.array(listS)
+    def plot_simulated_stock_values(self, num_trials=1):
+        '''generates a plot of num_trials series of stock returns'''
+        period = 1/self.nper_per_year
+        for i in range(num_trials):
+            xs = np.arange(0, self.t+period, period)
+            ys = self.generate_simulated_stock_values()
+            plt.plot(xs,ys)
+        plt.title('%d simulated trials' % num_trials)
+        plt.xlabel('years')
+        plt.ylabel('$ value')
+
+# Task 2: Pricing Path Dependent Options
+
+class MCStockOption(MCStockSimulator):
+    '''a class to encapsulate the idea of a Monte Carlo stock option'''
+    def __init__(self, s, x, t, r, sigma, nper_per_year, num_trials):
+        super().__init__(s, t, r, sigma, nper_per_year)
+        self.x = x
+        self.num_trials = num_trials
+    def __repr__(self):
+        '''returns a string representation of the object'''
+        s = 'MCStockOption, s = %.2f, x = %.2f, t = %.2f, r = %.2f, sigma = %.2f, nper_per_year = %d, num_trials = %d' % (self.s, self.x, self.t, self.r, self.sigma, self.nper_per_year, self.num_trials)
+        return s 
+    def value(self):
+        '''returns the value of the object'''
+        print('Base class MCStockOption has no concrete implementation of .value()')
+        return 0
+    def stderr(self):
+        '''returns the standard error of the option's value'''
+        if 'stdev' in dir(self):
+            return self.stdev / math.sqrt(self.num_trials)
+        return 0  
+    
+class MCEuroCallOption(MCStockOption):
+    '''a class to encapsulate the data for a European call option'''
+    def __repr__(self):
+        '''returns a string representation of the object'''
+        s = 'MCEuroCallOption, s = %.2f, x = %.2f, t = %.2f, r = %.2f, sigma = %.2f, nper_per_year = %d, num_trials = %d' % (self.s, self.x, self.t, self.r, self.sigma, self.nper_per_year, self.num_trials)
+        return s 
+    def value(self):
+        '''returns the value of the option'''
+        trialsL = []
+        for i in range(self.num_trials):
+            result = self.generate_simulated_stock_values()
+            if (result[-1] - self.x) < 0:
+                val = 0
+            else:
+                val = (result[-1] - self.x)*math.exp(-self.r*self.t)
+            trialsL += [val]
+        trials = np.array(trialsL)
+        self.mean = np.mean(trials)
+        self.stdev = np.std(trials)
+        return self.mean
+
+class MCEuroPutOption(MCStockOption):
+    '''a class to encapsulate the data for a European put option'''
+    def __repr__(self):
+        '''returns a string representation of the object'''
+        s = 'MCEuroPutOption, s = %.2f, x = %.2f, t = %.2f, r = %.2f, sigma = %.2f, nper_per_year = %d, num_trials = %d' % (self.s, self.x, self.t, self.r, self.sigma, self.nper_per_year, self.num_trials)
+        return s 
+    def value(self):
+        '''returns the value of the option'''
+        trialsL = []
+        for i in range(self.num_trials):
+            result = self.generate_simulated_stock_values()
+            if (self.x - result[-1]) < 0:
+                val = 0
+            else:
+                val = (self.x - result[-1])*math.exp(-self.r*self.t)
+            trialsL += [val]
+        trials = np.array(trialsL)
+        self.mean = np.mean(trials)
+        self.stdev = np.std(trials)
+        return self.mean  
+        
+class MCAsianCallOption(MCStockOption):
+    '''a class to encapsulate the data for an Asian call option'''
+    def __repr__(self):
+        '''returns a string representation of the object'''
+        s = 'MCAsianCallOption, s = %.2f, x = %.2f, t = %.2f, r = %.2f, sigma = %.2f, nper_per_year = %d, num_trials = %d' % (self.s, self.x, self.t, self.r, self.sigma, self.nper_per_year, self.num_trials)
+        return s 
+    def value(self):
+        '''returns the value of the option'''
+        trialsL = []
+        for i in range(self.num_trials):
+            result = self.generate_simulated_stock_values()
+            if (np.mean(result) - self.x) < 0:
+                val = 0
+            else:
+                val = (np.mean(result) - self.x)*math.exp(-self.r*self.t)
+            trialsL += [val]
+        trials = np.array(trialsL)
+        self.mean = np.mean(trials)
+        self.stdev = np.std(trials)
+        return self.mean   
+    
+class MCAsianPutOption(MCStockOption):
+    '''a class to encapsulate the data for an Asian put option'''
+    def __repr__(self):
+        '''returns a string representation of the object'''
+        s = 'MCAsianPutOption, s = %.2f, x = %.2f, t = %.2f, r = %.2f, sigma = %.2f, nper_per_year = %d, num_trials = %d' % (self.s, self.x, self.t, self.r, self.sigma, self.nper_per_year, self.num_trials)
+        return s 
+    def value(self):
+        '''returns the value of the option'''
+        trialsL = []
+        for i in range(self.num_trials):
+            result = self.generate_simulated_stock_values()
+            if (self.x - np.mean(result)) < 0:
+                val = 0
+            else:
+                val = (self.x - np.mean(result))*math.exp(-self.r*self.t)
+            trialsL += [val]
+        trials = np.array(trialsL)
+        self.mean = np.mean(trials)
+        self.stdev = np.std(trials)
+        return self.mean      
+    
+class MCLookbackCallOption(MCStockOption):
+    '''a class to encapsulate the data for a lookback call option'''
+    def __repr__(self):
+        '''returns a string representation of the object'''
+        s = 'MCLookbackCallOption, s = %.2f, x = %.2f, t = %.2f, r = %.2f, sigma = %.2f, nper_per_year = %d, num_trials = %d' % (self.s, self.x, self.t, self.r, self.sigma, self.nper_per_year, self.num_trials)
+        return s 
+    def value(self):
+        '''returns the value of the option'''
+        trialsL = []
+        for i in range(self.num_trials):
+            result = self.generate_simulated_stock_values()
+            if (max(result) - self.x) < 0:
+                val = 0
+            else:
+                val = (max(result) - self.x)*math.exp(-self.r*self.t)
+            trialsL += [val]
+        trials = np.array(trialsL)
+        self.mean = np.mean(trials)
+        self.stdev = np.std(trials)
+        return self.mean         
+
+class MCLookbackPutOption(MCStockOption):
+    '''a class to encapsulate the data for an lookback put option'''
+    def __repr__(self):
+        '''returns a string representation of the object'''
+        s = 'MCLookbackPutOption, s = %.2f, x = %.2f, t = %.2f, r = %.2f, sigma = %.2f, nper_per_year = %d, num_trials = %d' % (self.s, self.x, self.t, self.r, self.sigma, self.nper_per_year, self.num_trials)
+        return s 
+    def value(self):
+        '''returns the value of the option'''
+        trialsL = []
+        for i in range(self.num_trials):
+            result = self.generate_simulated_stock_values()
+            if (self.x - min(result)) < 0:
+                val = 0
+            else:
+                val = (self.x - min(result))*math.exp(-self.r*self.t)
+            trialsL += [val]
+        trials = np.array(trialsL)
+        self.mean = np.mean(trials)
+        self.stdev = np.std(trials)
+        return self.mean  
