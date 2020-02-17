@@ -1,0 +1,166 @@
+# Task 1: Efficient Portfolios and the Efficient Frontier
+
+import statistics
+import numpy as np
+import pandas as pd
+
+
+def calc_portfolio_return(e, w):
+    '''calculates and returns the portfolio return (>=2 assets)'''
+    E = np.matrix(e)
+    W = np.matrix(w)
+    return float(np.dot(E, np.transpose(W)))
+
+
+def calc_portfolio_stdev(v, w):
+    '''returns the portfolio standard deviation'''
+    return float(w*(v*np.transpose(w)))**0.5
+
+
+def calc_global_min_variance_portfolio(v):
+    '''returns the portfolio weights corresponding to the global min variance portfolio'''
+    I = np.matrix([1 for i in range(len(v))])
+    C = I*np.linalg.inv(v)*np.transpose(I)
+    return np.transpose(np.matrix((1/float(C))*(np.linalg.inv(v)*np.transpose(I))))
+
+
+def calc_min_variance_portfolio(e,v,r):
+    '''returns portfolio weights corresponding to the minimum variance portfolio for the required rate of return r'''
+    I = np.matrix([1 for i in range(len(v))])
+    A = I*np.linalg.inv(v)*np.transpose(e)
+    B = e*np.linalg.inv(v)*np.transpose(e)
+    C = I*np.linalg.inv(v)*np.transpose(I)
+    det = B*C - A**2
+    h = np.matrix((1/det)*(C*e - A*I)*np.linalg.inv(v))
+    g = np.matrix((1/det)*(B*I - A*e)*np.linalg.inv(v))
+    w = np.matrix(g + h*r)
+    return w
+    
+
+def calc_efficient_portfolios_stdev(e, v, rs):
+    '''finds a series of minimum variance portfolios and returns their standard deviations'''
+    result = []
+    for i in range(len(rs)):
+        w = calc_min_variance_portfolio(e, v, rs[i])
+        sigma = calc_portfolio_stdev(v, w)
+        result += [sigma]
+    return np.array(result)
+
+
+def get_stock_prices_from_csv_files(symbols):
+    '''obtains a data frame containing historical stock prices for the stocks in symbols'''
+    initial = pd.read_csv('./%s-monthly.csv' % symbols[0], index_col=[0])
+    df = initial['Adj Close']
+    for symbol in symbols[1:]:
+        fn = './%s-monthly.csv' % symbol
+        df_new = pd.read_csv(fn, index_col = 'Date')
+        df_data = df_new['Adj Close']
+        df = pd.merge(df, df_data, on='Date')
+    result = pd.DataFrame(df)
+    result.columns = symbols
+    return result
+
+
+def get_stock_returns_from_csv_files(symbols):
+    '''returns a data frame of the stock returns from symbols'''
+    df1 = get_stock_prices_from_csv_files(symbols)
+    list1 = df1['%s' % symbols[0]].tolist()
+    r_list1 = ['NaN']
+    for i in range(len(list1)-1):
+        item = (list1[i+1]-list1[i])/list1[i]
+        r_list1 += [item]
+    df_new = pd.DataFrame(r_list1)
+    df_new.columns = [symbols[0]]
+    df1['%s' % symbols[0]] = df_new['%s' % symbols[0]].values
+    for symbol in symbols[1:]:
+        p_list = df1['%s' % symbol].tolist()
+        r_list = ['NaN']
+        for i in range(len(p_list)-1):
+            item = (p_list[i+1]-p_list[i])/p_list[i]
+            r_list += [item]
+        df_new1 = pd.DataFrame(r_list)
+        df_new1.columns = [symbol]
+        df1['%s' % symbol] = df_new1['%s' % symbol].values
+    return df1
+
+        
+def covariance(x,y):
+    '''returns the covariance of the two lists x and y'''
+    assert(len(x) == len(y))
+    x_new = x[1:]
+    y_new = y[1:]
+    mx = statistics.mean(x_new)
+    my = statistics.mean(y_new)
+    covsum = 0
+    for i in range(len(x_new)):
+        covsum += (x_new[i]-mx)*(y_new[i]-my)
+    return covsum/len(x_new)
+
+
+def get_covariance_matrix(returns):
+    n = len(returns.columns)
+    init_list = returns.iloc[:,0].tolist()
+    init_result = []
+    for i in range(n):
+        r_list = returns.iloc[:, i].tolist()
+        item = covariance(init_list, r_list)
+        init_result += [item]
+    df = pd.DataFrame(init_result)
+    df.index = returns.columns
+    for i in range(1,n):
+        r_list1 = returns.iloc[:, i].tolist()
+        df_list = []
+        for i in range(n):
+            r_list2 = returns.iloc[:, i].tolist()
+            item1 = covariance(r_list1, r_list2)
+            df_list += [item1]
+        df_add = pd.DataFrame(df_list)
+        df_add.index = returns.columns
+        df = pd.merge(df, df_add, left_index=True, right_index=True)
+    df.columns=returns.columns
+    return df
+    
+# Task 2: Graphing with pandas
+
+import numpy as np
+import datetime as dt
+import matplotlib.pyplot as plt
+
+def plot_stock_prices(symbols):
+    '''plots the histroical stock prices for the stocks in symbols'''
+    ax = plt.gca()
+    df = get_stock_prices_from_csv_files(symbols)
+    for i in symbols:
+        df_list = df[i]
+        df_list.plot(kind='line',x='Date',y='Price',ax=ax)
+    plt.title('Stock Prices')
+    plt.legend()
+    plt.show()
+
+def plot_stock_cumulative_change(symbols):
+    '''plots the cumulative change of price for the stocks in symbols'''
+    df = get_stock_prices_from_csv_files(symbols)  
+    ax = plt.gca()
+    for i in symbols:
+        df[i] = (df[i]/df[i][0]).values
+        df_list = df[i]
+        df_list.plot(kind='line',x='Date',y='Relative Price',ax=ax)
+    plt.title('Cumulative Change in Stock Prices')
+    plt.legend()
+    plt.show()
+
+def plot_efficient_frontier(symbols):
+    '''creates a graph of the efficient frontier of symbols'''
+    df = get_stock_prices_from_csv_files(symbols)  
+    v = np.matrix(get_covariance_matrix(df))
+    e = np.matrix(np.mean(df))
+    w = calc_global_min_variance_portfolio(v)
+    min_var_p_ret = calc_portfolio_return(e,w)
+    delta = min_var_p_ret*10
+    rs = np.linspace(min_var_p_ret-delta, min_var_p_ret+delta)
+    x = calc_efficient_portfolios_stdev(e,v,rs)
+    plt.plot(x, rs.T, '-')
+    plt.xlabel('Portfolio Standard Deviation')
+    plt.ylabel('Portfolio Expected Return')
+    plt.title('Efficient Frontier')
+    plt.show
